@@ -205,11 +205,11 @@ export default function ClientPage({ id }: Props) {
               <TabsContent value="attrs">
                 {attrs?.attributes?.length ? (
                   <div className="space-y-2 text-sm">
-                    {attrs.attributes.map((a: any, idx: number) => (
+                    {attrs.attributes.map((a, idx) => (
                       <div key={idx} className="grid grid-cols-[120px_1fr] gap-2">
                         <div className="text-slate-500">id: {a.id}</div>
                         <div>
-                          {(a.values || []).map((v: any, i: number) => (
+                          {(a.values ?? []).map((v, i) => (
                             <span key={i} className="inline-block bg-slate-100 rounded px-2 py-0.5 mr-2 mb-1">
                               {v.value}
                             </span>
