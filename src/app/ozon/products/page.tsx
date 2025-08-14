@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,7 +26,7 @@ type OzonResponse = {
   };
 } | null;
 
-export default function Home() {
+export default function OzonProductsDemoPage() {
   const { toast } = useToast();
   const [data, setData] = useState<OzonResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +37,7 @@ export default function Home() {
   const [infoLoading, setInfoLoading] = useState(false);
   const [attrsById, setAttrsById] = useState<Record<number, any>>({});
   const [attrsLoading, setAttrsLoading] = useState(false);
-  const [history, setHistory] = useState<string[]>([""]);
+  const [history, setHistory] = useState<string[]>([""]); // stack of last_id used
 
   const fetchData = async (opts?: { limit?: number; last_id?: string }) => {
     setLoading(true);
@@ -58,6 +57,7 @@ export default function Home() {
         throw new Error(json?.error || res.statusText);
       }
       setData(json);
+      // After list comes, fetch info details and attributes for current page
       const productIds = (json?.result?.items ?? [])
         .map((it: any) => it?.product_id)
         .filter((v: any) => typeof v === "number");
@@ -82,6 +82,7 @@ export default function Home() {
   const fetchDetailsByProductIds = async (ids: number[]) => {
     setInfoLoading(true);
     try {
+      // API expects strings per schema; safe to coerce
       const body = { product_id: ids.map((id) => String(id)) };
       const res = await fetch("/api/ozon/products/info", {
         method: "POST",
@@ -98,8 +99,9 @@ export default function Home() {
       }
       setDetailsById(map);
     } catch (e) {
+      // swallow errors to not block list UI; show combined error
       const message = e instanceof Error ? e.message : "Unknown error";
-      setError((prev) => (prev ? prev + `; info: ${message}` : `info: ${message}`));
+      setError((prev) => prev ? prev + `; info: ${message}` : `info: ${message}`);
       toast({ title: "Ошибка деталей", description: message, variant: "destructive" });
       setDetailsById({});
     } finally {
@@ -133,7 +135,7 @@ export default function Home() {
       setAttrsById(map);
     } catch (e) {
       const message = e instanceof Error ? e.message : "Unknown error";
-      setError((prev) => (prev ? prev + `; attrs: ${message}` : `attrs: ${message}`));
+      setError((prev) => prev ? prev + `; attrs: ${message}` : `attrs: ${message}`);
       toast({ title: "Ошибка атрибутов", description: message, variant: "destructive" });
       setAttrsById({});
     } finally {
@@ -142,6 +144,7 @@ export default function Home() {
   };
 
   useEffect(() => {
+    // initial fetch
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -152,14 +155,10 @@ export default function Home() {
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
-          <Breadcrumbs items={[{ label: "Главная", href: "/" }, { label: "Товары Ozon" }]} />
-          <h1 className="text-2xl font-semibold">Товары Ozon</h1>
-        </div>
-        <Link href="/ozon/products" className="text-xs text-slate-500 hover:underline">альтернативный список</Link>
+      <div className="space-y-1">
+        <Breadcrumbs items={[{ label: "Главная", href: "/" }, { label: "Ozon Products" }]} />
+        <h1 className="text-2xl font-semibold">Ozon Products</h1>
       </div>
-
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col text-sm">
           <span className="mb-1">limit</span>
@@ -178,7 +177,7 @@ export default function Home() {
             type="text"
             value={lastId}
             onChange={(e) => setLastId(e.target.value)}
-            placeholder="оставьте пустым для первой страницы"
+            placeholder="leave empty for first page"
           />
         </label>
         <Button onClick={() => fetchData()} disabled={loading}>
@@ -196,56 +195,92 @@ export default function Home() {
         </Button>
       </div>
 
-      {error && <div className="text-red-600 text-sm">Error: {error}</div>}
+      {error && (
+        <div className="text-red-600 text-sm">Error: {error}</div>
+      )}
 
-      <div className="flex items-center justify-between text-sm text-slate-600">
-        <div>Total: {total}</div>
-        <div className="text-xs">next last_id: {nextLastId || "—"}</div>
-      </div>
+      <div className="text-sm text-slate-600">Total: {total}</div>
 
       <Separator />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {items?.length ? (
-          items.map((it, idx) => {
-            const pid = it.product_id ?? 0;
-            const info = detailsById[pid] ?? {};
-            const attr = attrsById[pid] ?? {};
-            const img = info?.primary_image?.[0] || info?.images?.[0] || attr?.primary_image || attr?.images?.[0];
-            return (
-              <Link key={`${pid}-${idx}`} href={`/product/${pid}`} className="block">
-                <Card className="hover:shadow-md transition-shadow">
-                  <CardHeader>
-                    <CardTitle className="truncate">{info?.name || it.offer_id || "No name"}</CardTitle>
-                    <CardDescription className="truncate">offer_id: {it.offer_id ?? "—"}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2 text-sm">
-                      {img ? (
-                        <img src={img} alt={info?.name || it.offer_id || "product image"} className="w-full h-40 object-cover rounded" loading="lazy" />
-                      ) : (
-                        <div className="w-full h-40 bg-slate-100 rounded flex items-center justify-center text-slate-400 text-xs">No image</div>
-                      )}
-                      <div className="flex items-baseline gap-2">
-                        {info?.price ? <span className="text-base font-semibold">{info.price}</span> : null}
-                        {info?.old_price ? <span className="text-xs line-through text-slate-400">{info.old_price}</span> : null}
-                      </div>
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        {it.archived ? <Badge variant="destructive">Archived</Badge> : null}
-                        {it.is_discounted ? <Badge>Discounted</Badge> : null}
-                        {it.has_fbo_stocks ? <Badge variant="secondary">FBO</Badge> : null}
-                        {it.has_fbs_stocks ? <Badge variant="secondary">FBS</Badge> : null}
-                      </div>
+          items.map((it, idx) => (
+            <Card key={`${it.product_id ?? it.offer_id}-${idx}`}>
+              <CardHeader>
+                <CardTitle className="truncate">
+                  {detailsById[it.product_id ?? 0]?.name || it.offer_id || "No name"}
+                </CardTitle>
+                <CardDescription className="truncate">
+                  offer_id: {it.offer_id ?? "—"}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 text-sm">
+                  {detailsById[it.product_id ?? 0]?.images?.[0] || detailsById[it.product_id ?? 0]?.primary_image?.[0] ? (
+                    // Use plain img to avoid next.config remote domains setup
+                    <img
+                      src={
+                        detailsById[it.product_id ?? 0]?.primary_image?.[0] ||
+                        detailsById[it.product_id ?? 0]?.images?.[0]
+                      }
+                      alt={detailsById[it.product_id ?? 0]?.name || it.offer_id || "product image"}
+                      className="w-full h-40 object-cover rounded"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="w-full h-40 bg-slate-100 rounded flex items-center justify-center text-slate-400 text-xs">
+                      No image
                     </div>
-                  </CardContent>
-                  <CardFooter className="flex items-center justify-between">
-                    <span className="text-xs text-slate-500">ozon</span>
-                    <span className="text-[10px] text-slate-400">id: {pid || "—"}</span>
-                  </CardFooter>
-                </Card>
-              </Link>
-            );
-          })
+                  )}
+                  <div className="flex items-baseline gap-2">
+                    {detailsById[it.product_id ?? 0]?.price ? (
+                      <span className="text-base font-semibold">
+                        {detailsById[it.product_id ?? 0]?.price}
+                      </span>
+                    ) : null}
+                    {detailsById[it.product_id ?? 0]?.old_price ? (
+                      <span className="text-xs line-through text-slate-400">
+                        {detailsById[it.product_id ?? 0]?.old_price}
+                      </span>
+                    ) : null}
+                  </div>
+                  {/* Dimensions / weight from attributes endpoint */}
+                  {attrsById[it.product_id ?? 0] ? (
+                    <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
+                      {typeof attrsById[it.product_id ?? 0]?.height === "number" && (
+                        <div>H: {attrsById[it.product_id ?? 0]?.height}{attrsById[it.product_id ?? 0]?.dimension_unit ? ` ${attrsById[it.product_id ?? 0]?.dimension_unit}` : ''}</div>
+                      )}
+                      {typeof attrsById[it.product_id ?? 0]?.width === "number" && (
+                        <div>W: {attrsById[it.product_id ?? 0]?.width}{attrsById[it.product_id ?? 0]?.dimension_unit ? ` ${attrsById[it.product_id ?? 0]?.dimension_unit}` : ''}</div>
+                      )}
+                      {typeof attrsById[it.product_id ?? 0]?.depth === "number" && (
+                        <div>D: {attrsById[it.product_id ?? 0]?.depth}{attrsById[it.product_id ?? 0]?.dimension_unit ? ` ${attrsById[it.product_id ?? 0]?.dimension_unit}` : ''}</div>
+                      )}
+                      {typeof attrsById[it.product_id ?? 0]?.weight === "number" && (
+                        <div>Weight: {attrsById[it.product_id ?? 0]?.weight}{attrsById[it.product_id ?? 0]?.weight_unit ? ` ${attrsById[it.product_id ?? 0]?.weight_unit}` : ''}</div>
+                      )}
+                    </div>
+                  ) : null}
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {it.archived ? <Badge variant="destructive">Archived</Badge> : null}
+                    {it.is_discounted ? <Badge>Discounted</Badge> : null}
+                    {it.has_fbo_stocks ? <Badge variant="secondary">FBO</Badge> : null}
+                    {it.has_fbs_stocks ? <Badge variant="secondary">FBS</Badge> : null}
+                  </div>
+                  {!!it.quants?.length && (
+                    <div className="pt-1">
+                      quants: {it.quants.map((q, i) => `${q.quant_code ?? ''}:${q.quant_size ?? ''}`).join(", ")}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+              <CardFooter className="flex items-center justify-between">
+                <span className="text-xs text-slate-500">ozon</span>
+                <span className="text-[10px] text-slate-400">id: {it.product_id ?? "—"}</span>
+              </CardFooter>
+            </Card>
+          ))
         ) : (
           loading ? (
             <>
@@ -303,10 +338,18 @@ export default function Home() {
         >
           Prev page
         </Button>
+        <div className="text-xs text-slate-500">next last_id: {nextLastId || "—"}</div>
         {(infoLoading || attrsLoading) ? (
           <div className="text-xs text-slate-500">loading {infoLoading ? 'details' : ''}{infoLoading && attrsLoading ? ' & ' : ''}{attrsLoading ? 'attributes' : ''}…</div>
         ) : null}
       </div>
+
+      <details className="mt-4">
+        <summary className="cursor-pointer text-sm text-slate-600">Raw response</summary>
+        <pre className="text-xs bg-gray-50 border rounded p-4 overflow-auto mt-2">
+          {data ? JSON.stringify(data, null, 2) : loading ? "Loading..." : "No data"}
+        </pre>
+      </details>
     </div>
   );
 }
