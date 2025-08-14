@@ -22,7 +22,7 @@ export type ProductInfo = {
   created_at?: string;
   updated_at?: string;
   sources?: Array<{ sku?: string }>;
-  statuses?: unknown;
+  statuses?: { is_archived?: boolean } | null;
   stocks?: unknown;
 };
 
