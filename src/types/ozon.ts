@@ -29,6 +29,7 @@ export type ProductInfo = {
 export type ProductAttrs = {
   id?: number;
   name?: string;
+  offer_id?: string;
   primary_image?: string;
   images?: string[];
   height?: number;
@@ -48,4 +49,3 @@ export type OzonListResponse = {
 export type OzonInfoResponse = { items?: ProductInfo[] } | null;
 
 export type OzonAttrsResponse = { result?: ProductAttrs[] } | null;
-
