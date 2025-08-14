@@ -34,7 +34,7 @@ export default function ClientPage({ id }: Props) {
           body: JSON.stringify({ product_id: [String(productId)] }),
         });
         const infoJson = await infoRes.json();
-        if (!infoRes.ok) throw new Error(infoJson?.error || infoRes.statusText);
+        if (!infoRes.ok) throw new Error(((infoJson as unknown) as { error?: string })?.error || infoRes.statusText);
         setInfo(infoJson?.items?.[0] ?? null);
 
         const attrsRes = await fetch("/api/ozon/products/attributes", {
@@ -46,7 +46,7 @@ export default function ClientPage({ id }: Props) {
           }),
         });
         const attrsJson = await attrsRes.json();
-        if (!attrsRes.ok) throw new Error(attrsJson?.error || attrsRes.statusText);
+        if (!attrsRes.ok) throw new Error(((attrsJson as unknown) as { error?: string })?.error || attrsRes.statusText);
         setAttrs(attrsJson?.result?.[0] ?? null);
       } catch (e) {
         const message = e instanceof Error ? e.message : "Unknown error";

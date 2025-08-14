@@ -41,7 +41,7 @@ export default function Home() {
       });
       const json = (await res.json()) as OzonListResponse;
       if (!res.ok) {
-        throw new Error(json?.error || res.statusText);
+        throw new Error((json as { error?: string } | null)?.error || res.statusText);
       }
       setData(json);
       const productIds = (json?.result?.items ?? [])
@@ -75,7 +75,7 @@ export default function Home() {
         body: JSON.stringify(body),
       });
       const json = (await res.json()) as { items?: ProductInfo[] };
-      if (!res.ok) throw new Error(json?.error || res.statusText);
+      if (!res.ok) throw new Error(((json as unknown) as { error?: string })?.error || res.statusText);
       const map: Record<number, ProductInfo> = {};
       for (const item of (json?.items ?? [])) {
         if (typeof item?.id === "number") {
@@ -109,7 +109,7 @@ export default function Home() {
         body: JSON.stringify(body),
       });
       const json = (await res.json()) as { result?: ProductAttrs[] };
-      if (!res.ok) throw new Error(json?.error || res.statusText);
+      if (!res.ok) throw new Error(((json as unknown) as { error?: string })?.error || res.statusText);
       const map: Record<number, ProductAttrs> = {};
       for (const item of (json?.result ?? [])) {
         if (typeof item?.id === "number") {
