@@ -10,32 +10,18 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/components/ui/toast";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 
-type OzonResponse = {
-  result?: {
-    items?: Array<{
-      archived?: boolean;
-      has_fbo_stocks?: boolean;
-      has_fbs_stocks?: boolean;
-      is_discounted?: boolean;
-      offer_id?: string;
-      product_id?: number;
-      quants?: Array<{ quant_code?: string; quant_size?: number }>;
-    }>;
-    total?: number;
-    last_id?: string;
-  };
-} | null;
+import type { OzonListResponse, ProductInfo, ProductAttrs } from "@/types/ozon";
 
 export default function OzonProductsDemoPage() {
   const { toast } = useToast();
-  const [data, setData] = useState<OzonResponse | null>(null);
+  const [data, setData] = useState<OzonListResponse>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [limit, setLimit] = useState(100);
   const [lastId, setLastId] = useState<string>("");
-  const [detailsById, setDetailsById] = useState<Record<number, any>>({});
+  const [detailsById, setDetailsById] = useState<Record<number, ProductInfo>>({});
   const [infoLoading, setInfoLoading] = useState(false);
-  const [attrsById, setAttrsById] = useState<Record<number, any>>({});
+  const [attrsById, setAttrsById] = useState<Record<number, ProductAttrs>>({});
   const [attrsLoading, setAttrsLoading] = useState(false);
   const [history, setHistory] = useState<string[]>([""]); // stack of last_id used
 
@@ -52,15 +38,15 @@ export default function OzonProductsDemoPage() {
           last_id: typeof opts?.last_id === "string" ? opts!.last_id : lastId,
         }),
       });
-      const json = await res.json();
+      const json = (await res.json()) as OzonListResponse;
       if (!res.ok) {
         throw new Error(json?.error || res.statusText);
       }
       setData(json);
       // After list comes, fetch info details and attributes for current page
       const productIds = (json?.result?.items ?? [])
-        .map((it: any) => it?.product_id)
-        .filter((v: any) => typeof v === "number");
+        .map((it) => it?.product_id)
+        .filter((v): v is number => typeof v === "number");
       if (productIds.length) {
         await Promise.all([
           fetchDetailsByProductIds(productIds),
@@ -89,10 +75,10 @@ export default function OzonProductsDemoPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const json = await res.json();
+      const json = (await res.json()) as { items?: ProductInfo[] };
       if (!res.ok) throw new Error(json?.error || res.statusText);
-      const map: Record<number, any> = {};
-      for (const item of json?.items ?? []) {
+      const map: Record<number, ProductInfo> = {};
+      for (const item of (json?.items ?? [])) {
         if (typeof item?.id === "number") {
           map[item.id] = item;
         }
@@ -124,10 +110,10 @@ export default function OzonProductsDemoPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const json = await res.json();
+      const json = (await res.json()) as { result?: ProductAttrs[] };
       if (!res.ok) throw new Error(json?.error || res.statusText);
-      const map: Record<number, any> = {};
-      for (const item of json?.result ?? []) {
+      const map: Record<number, ProductAttrs> = {};
+      for (const item of (json?.result ?? [])) {
         if (typeof item?.id === "number") {
           map[item.id] = item;
         }
@@ -270,7 +256,7 @@ export default function OzonProductsDemoPage() {
                   </div>
                   {!!it.quants?.length && (
                     <div className="pt-1">
-                      quants: {it.quants.map((q, i) => `${q.quant_code ?? ''}:${q.quant_size ?? ''}`).join(", ")}
+                      quants: {it.quants.map((q) => `${q.quant_code ?? ''}:${q.quant_size ?? ''}`).join(", ")}
                     </div>
                   )}
                 </div>

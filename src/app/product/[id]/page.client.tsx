@@ -9,13 +9,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
+import type { ProductInfo, ProductAttrs } from "@/types/ozon";
 
 type Props = { id: string };
 
 export default function ClientPage({ id }: Props) {
   const productId = id;
-  const [info, setInfo] = useState<any | null>(null);
-  const [attrs, setAttrs] = useState<any | null>(null);
+  const [info, setInfo] = useState<ProductInfo | null>(null);
+  const [attrs, setAttrs] = useState<ProductAttrs | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState<string>("info");
