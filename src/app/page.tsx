@@ -11,7 +11,9 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/components/ui/toast";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 
-import type { OzonListResponse, ProductInfo, ProductAttrs } from "@/types/ozon";
+import type { OzonListResponse, ProductInfo, ProductAttrs, OzonListItem } from "@/types/ozon";
+import { formatCurrency, formatDateTime } from "@/lib/format";
+import { getAttrLabel } from "@/lib/ozon-attrs";
 
 export default function Home() {
   const { toast } = useToast();
@@ -25,6 +27,13 @@ export default function Home() {
   const [attrsById, setAttrsById] = useState<Record<number, ProductAttrs>>({});
   const [attrsLoading, setAttrsLoading] = useState(false);
   const [history, setHistory] = useState<string[]>([""]);
+  const [offerQuery, setOfferQuery] = useState("");
+  const [skuQuery, setSkuQuery] = useState("");
+  const [titleQuery, setTitleQuery] = useState("");
+  const [visibility, setVisibility] = useState("ALL");
+  const [sortBy, setSortBy] = useState<string | undefined>(undefined);
+  const [sortDir, setSortDir] = useState<string | undefined>(undefined);
+  const [itemsAcc, setItemsAcc] = useState<OzonListItem[]>([]);
 
   const fetchData = async (opts?: { limit?: number; last_id?: string }) => {
     setLoading(true);
@@ -34,7 +43,11 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          filter: { visibility: "ALL" },
+          filter: {
+            visibility: visibility || "ALL",
+            ...(offerQuery ? { offer_id: [offerQuery] } : {}),
+            ...(skuQuery ? { sku: [skuQuery] } : {}),
+          },
           limit: typeof opts?.limit === "number" ? opts!.limit : limit,
           last_id: typeof opts?.last_id === "string" ? opts!.last_id : lastId,
         }),
@@ -44,6 +57,7 @@ export default function Home() {
         throw new Error((json as { error?: string } | null)?.error || res.statusText);
       }
       setData(json);
+      setItemsAcc((prev) => (lastId ? [...prev, ...(json?.result?.items ?? [])] : (json?.result?.items ?? [])));
       const productIds = (json?.result?.items ?? [])
         .map((it) => it?.product_id)
         .filter((v): v is number => typeof v === "number");
@@ -102,6 +116,8 @@ export default function Home() {
           visibility: "ALL",
         },
         limit: Math.min(ids.length, 1000),
+        ...(sortBy ? { sort_by: sortBy } : {}),
+        ...(sortDir ? { sort_dir: sortDir } : {}),
       };
       const res = await fetch("/api/ozon/products/attributes", {
         method: "POST",
@@ -136,6 +152,22 @@ export default function Home() {
   const total = data?.result?.total ?? 0;
   const nextLastId = data?.result?.last_id ?? "";
 
+  // Infinite scroll: наблюдаем за нижним стражем
+  useEffect(() => {
+    const sentinel = document.getElementById('scroll-sentinel');
+    if (!sentinel) return;
+    const obs = new IntersectionObserver((entries) => {
+      const e = entries[0];
+      if (e.isIntersecting && nextLastId && !loading) {
+        setHistory((h) => [...h, nextLastId || ""]);
+        setLastId(nextLastId);
+        fetchData({ last_id: nextLastId, limit });
+      }
+    }, { rootMargin: '200px' });
+    obs.observe(sentinel);
+    return () => obs.disconnect();
+  }, [nextLastId, loading, limit]);
+
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-4">
       <div className="flex items-center justify-between">
@@ -148,7 +180,7 @@ export default function Home() {
 
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col text-sm">
-          <span className="mb-1">limit</span>
+          <span className="mb-1">Лимит</span>
           <Input
             type="number"
             min={1}
@@ -158,8 +190,16 @@ export default function Home() {
             className="w-32"
           />
         </label>
+        <label className="flex flex-col text-sm">
+          <span className="mb-1">Видимость</span>
+          <select className="border rounded h-9 px-2" value={visibility} onChange={(e) => setVisibility(e.target.value)}>
+            <option value="ALL">ALL</option>
+            <option value="VISIBLE">VISIBLE</option>
+            <option value="INVISIBLE">INVISIBLE</option>
+          </select>
+        </label>
         <label className="flex flex-col text-sm flex-1 min-w-[200px]">
-          <span className="mb-1">last_id</span>
+          <span className="mb-1">Маркер страницы (last_id)</span>
           <Input
             type="text"
             value={lastId}
@@ -167,33 +207,69 @@ export default function Home() {
             placeholder="оставьте пустым для первой страницы"
           />
         </label>
+        <label className="flex flex-col text-sm">
+          <span className="mb-1">Артикул (offer_id)</span>
+          <Input value={offerQuery} onChange={(e) => setOfferQuery(e.target.value)} placeholder="например, 21470" className="w-44" />
+        </label>
+        <label className="flex flex-col text-sm">
+          <span className="mb-1">SKU</span>
+          <Input value={skuQuery} onChange={(e) => setSkuQuery(e.target.value)} placeholder="например, 423434534" className="w-44" />
+        </label>
+        <label className="flex flex-col text-sm flex-1 min-w-[160px]">
+          <span className="mb-1">Название (клиентский фильтр)</span>
+          <Input value={titleQuery} onChange={(e) => setTitleQuery(e.target.value)} placeholder="начните вводить..." />
+        </label>
+        <label className="flex flex-col text-sm">
+          <span className="mb-1">Сортировка атрибутов</span>
+          <div className="flex gap-2">
+            <select className="border rounded h-9 px-2" value={sortBy ?? ''} onChange={(e) => setSortBy(e.target.value || undefined)}>
+              <option value="">—</option>
+              <option value="sku">sku</option>
+              <option value="offer_id">offer_id</option>
+              <option value="id">id</option>
+              <option value="title">title</option>
+            </select>
+            <select className="border rounded h-9 px-2" value={sortDir ?? ''} onChange={(e) => setSortDir(e.target.value || undefined)}>
+              <option value="">—</option>
+              <option value="asc">asc</option>
+              <option value="desc">desc</option>
+            </select>
+          </div>
+        </label>
         <Button onClick={() => fetchData()} disabled={loading}>
-          {loading ? "Loading..." : "Fetch"}
+          {loading ? "Загрузка..." : "Обновить"}
         </Button>
         <Button
           variant="secondary"
           onClick={() => {
             setLastId("");
+            setItemsAcc([]);
             fetchData({ last_id: "", limit });
           }}
           disabled={loading}
         >
-          Reset
+          Сбросить
         </Button>
       </div>
 
-      {error && <div className="text-red-600 text-sm">Error: {error}</div>}
+      {error && <div className="text-red-600 text-sm">Ошибка: {error}</div>}
 
       <div className="flex items-center justify-between text-sm text-slate-600">
-        <div>Total: {total}</div>
-        <div className="text-xs">next last_id: {nextLastId || "—"}</div>
+        <div>Всего: {total}</div>
+        <div className="text-xs">следующий маркер: {nextLastId || "—"}</div>
       </div>
 
       <Separator />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {items?.length ? (
-          items.map((it, idx) => {
+        {(titleQuery ? itemsAcc.filter((it) => {
+            const name = detailsById[it.product_id ?? 0]?.name || attrsById[it.product_id ?? 0]?.name || '';
+            return name.toLowerCase().includes(titleQuery.toLowerCase());
+          }) : itemsAcc)?.length ? (
+          (titleQuery ? itemsAcc.filter((it) => {
+            const name = detailsById[it.product_id ?? 0]?.name || attrsById[it.product_id ?? 0]?.name || '';
+            return name.toLowerCase().includes(titleQuery.toLowerCase());
+          }) : itemsAcc).map((it, idx) => {
             const pid = it.product_id ?? 0;
             const info = detailsById[pid] ?? {};
             const attr = attrsById[pid] ?? {};
@@ -202,23 +278,23 @@ export default function Home() {
               <Link key={`${pid}-${idx}`} href={`/product/${pid}`} className="block">
                 <Card className="hover:shadow-md transition-shadow">
                   <CardHeader>
-                    <CardTitle className="truncate">{info?.name || it.offer_id || "No name"}</CardTitle>
-                    <CardDescription className="truncate">offer_id: {it.offer_id ?? "—"}</CardDescription>
+                    <CardTitle className="truncate">{info?.name || it.offer_id || "Без названия"}</CardTitle>
+                    <CardDescription className="truncate">Артикул: {it.offer_id ?? "—"}</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2 text-sm">
                       {img ? (
                         <img src={img} alt={info?.name || it.offer_id || "product image"} className="w-full h-40 object-cover rounded" loading="lazy" />
                       ) : (
-                        <div className="w-full h-40 bg-slate-100 rounded flex items-center justify-center text-slate-400 text-xs">No image</div>
+                        <div className="w-full h-40 bg-slate-100 rounded flex items-center justify-center text-slate-400 text-xs">Нет изображения</div>
                       )}
                       <div className="flex items-baseline gap-2">
-                        {info?.price ? <span className="text-base font-semibold">{info.price}</span> : null}
-                        {info?.old_price ? <span className="text-xs line-through text-slate-400">{info.old_price}</span> : null}
+                        {info?.price ? <span className="text-base font-semibold">{formatCurrency(info.price)}</span> : null}
+                        {info?.old_price ? <span className="text-xs line-through text-slate-400">{formatCurrency(info.old_price)}</span> : null}
                       </div>
                       <div className="flex flex-wrap gap-2 pt-1">
-                        {it.archived ? <Badge variant="destructive">Archived</Badge> : null}
-                        {it.is_discounted ? <Badge>Discounted</Badge> : null}
+                        {it.archived ? <Badge variant="destructive">Архив</Badge> : null}
+                        {it.is_discounted ? <Badge>Скидка</Badge> : null}
                         {it.has_fbo_stocks ? <Badge variant="secondary">FBO</Badge> : null}
                         {it.has_fbs_stocks ? <Badge variant="secondary">FBS</Badge> : null}
                       </div>
@@ -256,43 +332,15 @@ export default function Home() {
               ))}
             </>
           ) : (
-            <div className="text-sm text-slate-600">No items</div>
+            <div className="text-sm text-slate-600">Нет товаров</div>
           )
         )}
       </div>
 
-      <div className="flex items-center gap-3 pt-2">
-        <Button
-          onClick={() => {
-            setHistory((h) => [...h, nextLastId || ""]);
-            setLastId(nextLastId);
-            fetchData({ last_id: nextLastId, limit });
-          }}
-          disabled={loading || !nextLastId}
-        >
-          Next page
-        </Button>
-        <Button
-          variant="secondary"
-          onClick={() => {
-            setHistory((h) => {
-              if (h.length <= 1) return h;
-              const copy = [...h];
-              copy.pop();
-              const prev = copy[copy.length - 1] ?? "";
-              setLastId(prev);
-              fetchData({ last_id: prev, limit });
-              return copy;
-            });
-          }}
-          disabled={loading || history.length <= 1}
-        >
-          Prev page
-        </Button>
-        {(infoLoading || attrsLoading) ? (
-          <div className="text-xs text-slate-500">loading {infoLoading ? 'details' : ''}{infoLoading && attrsLoading ? ' & ' : ''}{attrsLoading ? 'attributes' : ''}…</div>
-        ) : null}
-      </div>
+      <div id="scroll-sentinel" className="h-6" />
+      {(infoLoading || attrsLoading) ? (
+        <div className="text-xs text-slate-500">загрузка {infoLoading ? 'деталей' : ''}{infoLoading && attrsLoading ? ' и ' : ''}{attrsLoading ? 'атрибутов' : ''}…</div>
+      ) : null}
     </div>
   );
 }

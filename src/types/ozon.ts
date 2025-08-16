@@ -32,6 +32,7 @@ export type ProductAttrs = {
   offer_id?: string;
   primary_image?: string;
   images?: string[];
+  pdf_list?: Array<{ name?: string; link?: string }>;
   height?: number;
   width?: number;
   depth?: number;

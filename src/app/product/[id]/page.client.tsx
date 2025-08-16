@@ -10,6 +10,8 @@ import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
 import type { ProductInfo, ProductAttrs } from "@/types/ozon";
+import { formatCurrency, formatDateTime } from "@/lib/format";
+import { getAttrLabel } from "@/lib/ozon-attrs";
 
 type Props = { id: string };
 
@@ -49,7 +51,7 @@ export default function ClientPage({ id }: Props) {
         if (!attrsRes.ok) throw new Error(((attrsJson as unknown) as { error?: string })?.error || attrsRes.statusText);
         setAttrs(attrsJson?.result?.[0] ?? null);
       } catch (e) {
-        const message = e instanceof Error ? e.message : "Unknown error";
+        const message = e instanceof Error ? e.message : "Неизвестная ошибка";
         setError(message);
         toast({ title: "Ошибка загрузки товара", description: message, variant: "destructive" });
       } finally {
@@ -59,7 +61,7 @@ export default function ClientPage({ id }: Props) {
     run();
   }, [productId, toast]);
 
-  const title = info?.name || attrs?.name || `Product ${productId}`;
+  const title = info?.name || attrs?.name || `Товар ${productId}`;
   const gallery: string[] = useMemo(() => {
     const imgs: string[] = [];
     if (Array.isArray(info?.primary_image)) imgs.push(...info.primary_image);
@@ -81,7 +83,7 @@ export default function ClientPage({ id }: Props) {
         <Link href="/" className="text-sm text-blue-600 hover:underline">← Назад к списку</Link>
       </div>
 
-      {error && <div className="text-red-600 text-sm">Error: {error}</div>}
+      {error && <div className="text-red-600 text-sm">Ошибка: {error}</div>}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Gallery */}
@@ -113,7 +115,7 @@ export default function ClientPage({ id }: Props) {
               )}
             </>
           ) : (
-            <div className="w-full aspect-[4/3] bg-slate-100 rounded flex items-center justify-center text-slate-400 text-sm">No image</div>
+            <div className="w-full aspect-[4/3] bg-slate-100 rounded flex items-center justify-center text-slate-400 text-sm">Нет изображения</div>
           )}
         </div>
 
@@ -130,7 +132,7 @@ export default function ClientPage({ id }: Props) {
                 <TabsTrigger value="statuses">Статусы</TabsTrigger>
                 <TabsTrigger value="stocks">Остатки</TabsTrigger>
                 <TabsTrigger value="attrs">Характеристики</TabsTrigger>
-                <TabsTrigger value="raw">Raw</TabsTrigger>
+                <TabsTrigger value="raw">Сырой ответ</TabsTrigger>
               </TabsList>
 
               <TabsContent value="info">
@@ -151,29 +153,29 @@ export default function ClientPage({ id }: Props) {
                     <div>{info?.offer_id ?? attrs?.offer_id ?? "—"}</div>
                     <div className="text-slate-500">sku</div>
                     <div>{info?.sources?.[0]?.sku ?? attrs?.sku ?? "—"}</div>
-                    <div className="text-slate-500">currency</div>
+                    <div className="text-slate-500">валюта</div>
                     <div>{info?.currency_code ?? "—"}</div>
 
-                    <div className="text-slate-500">price</div>
-                    <div>{info?.price ?? "—"}</div>
-                    <div className="text-slate-500">old_price</div>
-                    <div>{info?.old_price ?? "—"}</div>
-                    <div className="text-slate-500">marketing_price</div>
-                    <div>{info?.marketing_price ?? "—"}</div>
-                    <div className="text-slate-500">min_price</div>
-                    <div>{info?.min_price ?? "—"}</div>
+                    <div className="text-slate-500">цена</div>
+                    <div>{formatCurrency(info?.price)}</div>
+                    <div className="text-slate-500">старая цена</div>
+                    <div>{formatCurrency(info?.old_price)}</div>
+                    <div className="text-slate-500">маркетинговая цена</div>
+                    <div>{formatCurrency(info?.marketing_price)}</div>
+                    <div className="text-slate-500">минимальная цена</div>
+                    <div>{formatCurrency(info?.min_price)}</div>
 
-                    <div className="text-slate-500">created_at</div>
-                    <div>{info?.created_at ?? "—"}</div>
-                    <div className="text-slate-500">updated_at</div>
-                    <div>{info?.updated_at ?? "—"}</div>
+                    <div className="text-slate-500">создан</div>
+                    <div>{formatDateTime(info?.created_at)}</div>
+                    <div className="text-slate-500">обновлён</div>
+                    <div>{formatDateTime(info?.updated_at)}</div>
                   </div>
                 )}
                 <Separator className="my-3" />
                 <div className="flex flex-wrap gap-2">
-                  {info?.price ? <Badge>Price</Badge> : null}
-                  {info?.old_price ? <Badge variant="secondary">Sale</Badge> : null}
-                  {info?.statuses?.is_archived ? <Badge variant="destructive">Archived</Badge> : null}
+                  {info?.price ? <Badge>Цена</Badge> : null}
+                  {info?.old_price ? <Badge variant="secondary">Скидка</Badge> : null}
+                  {info?.statuses?.is_archived ? <Badge variant="destructive">Архив</Badge> : null}
                 </div>
               </TabsContent>
 
@@ -207,7 +209,7 @@ export default function ClientPage({ id }: Props) {
                   <div className="space-y-2 text-sm">
                     {attrs.attributes.map((a, idx) => (
                       <div key={idx} className="grid grid-cols-[120px_1fr] gap-2">
-                        <div className="text-slate-500">id: {a.id}</div>
+                        <div className="text-slate-500">{getAttrLabel(a.id)}</div>
                         <div>
                           {(a.values ?? []).map((v, i) => (
                             <span key={i} className="inline-block bg-slate-100 rounded px-2 py-0.5 mr-2 mb-1">
@@ -224,20 +226,32 @@ export default function ClientPage({ id }: Props) {
               </TabsContent>
 
               <TabsContent value="raw">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div>
-                    <div className="text-sm font-medium mb-1">Raw info</div>
-                    <pre className="text-xs bg-gray-50 border rounded p-3 overflow-auto">{info ? JSON.stringify(info, null, 2) : "—"}</pre>
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium mb-1">Raw attributes</div>
-                    <pre className="text-xs bg-gray-50 border rounded p-3 overflow-auto">{attrs ? JSON.stringify(attrs, null, 2) : "—"}</pre>
-                  </div>
-                </div>
+                <pre className="text-xs bg-gray-50 border rounded p-3 overflow-auto">{JSON.stringify({ info, attrs }, null, 2)}</pre>
               </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
+      </div>
+      {!!attrs?.pdf_list?.length && (
+        <div>
+          <h2 className="text-lg font-semibold mb-2">PDF-файлы</h2>
+          <ul className="list-disc pl-6 text-sm">
+            {attrs.pdf_list.map((p, i) => (
+              <li key={i}><a href={p.link} target="_blank" className="text-blue-600 hover:underline">{p.name || p.link}</a></li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="flex items-center gap-2 text-sm">
+        <button
+          className="px-2 py-1 border rounded hover:bg-slate-50"
+          onClick={() => navigator.clipboard.writeText(String(info?.sources?.[0]?.sku || attrs?.sku || ''))}
+        >Скопировать SKU</button>
+        <button
+          className="px-2 py-1 border rounded hover:bg-slate-50"
+          onClick={() => navigator.clipboard.writeText(String(info?.offer_id || attrs?.offer_id || ''))}
+        >Скопировать артикул</button>
       </div>
     </div>
   );

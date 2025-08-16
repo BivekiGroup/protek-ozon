@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
+import { ozonPost } from "@/lib/ozon";
 
-const OZON_API_URL = "https://api-seller.ozon.ru/v4/product/info/attributes";
+const OZON_API_URL = "/v4/product/info/attributes";
 
 type AttributesBody = {
   filter?: Record<string, unknown>;
@@ -12,45 +13,39 @@ type AttributesBody = {
 
 export async function POST(req: Request) {
   try {
-    const { OZON_CLIENT_ID, OZON_API_KEY } = process.env;
-    if (!OZON_CLIENT_ID || !OZON_API_KEY) {
-      return NextResponse.json(
-        { error: "Missing OZON_CLIENT_ID or OZON_API_KEY env vars" },
-        { status: 500 }
-      );
+    const raw = (await req.json().catch(() => ({}))) as AttributesBody;
+    // Лёгкая валидация / нормализация
+    const errors: string[] = [];
+    const limit = typeof raw?.limit === 'number' ? raw.limit : undefined;
+    if (limit !== undefined && (limit < 1 || limit > 1000)) errors.push('limit должен быть 1..1000');
+    const sort_dir = raw?.sort_dir ? String(raw.sort_dir).toLowerCase() : undefined;
+    const sort_by = raw?.sort_by ? String(raw.sort_by) : undefined;
+    const body: AttributesBody = {
+      filter: (raw?.filter && typeof raw.filter === 'object') ? raw.filter : undefined,
+      last_id: typeof raw?.last_id === 'string' ? raw.last_id : undefined,
+      limit,
+      sort_by,
+      sort_dir: sort_dir ? (sort_dir === 'asc' ? 'ASC' : sort_dir === 'desc' ? 'DESC' : undefined) : undefined,
+    };
+    if (errors.length) {
+      return NextResponse.json({ error: errors.join('; ') }, { status: 400 });
     }
-
-    const body = (await req.json().catch(() => ({}))) as AttributesBody;
-
-    const upstream = await fetch(OZON_API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Client-Id": OZON_CLIENT_ID,
-        "Api-Key": OZON_API_KEY,
-      },
-      body: JSON.stringify(body),
-      cache: "no-store",
-    });
-
-    const data = await upstream.json().catch(() => null);
-
-    if (!upstream.ok) {
+    const { ok, status, statusText, data } = await ozonPost(OZON_API_URL, body);
+    if (!ok) {
       return NextResponse.json(
         {
-          error: "Ozon API error",
-          status: upstream.status,
-          statusText: upstream.statusText,
+          error: "Ошибка ответа Ozon API",
+          status,
+          statusText,
           data,
         },
-        { status: upstream.status }
+        { status }
       );
     }
 
     return NextResponse.json(data, { status: 200 });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
+    const message = err instanceof Error ? err.message : "Неизвестная ошибка";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
-

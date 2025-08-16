@@ -11,6 +11,8 @@ import { useToast } from "@/components/ui/toast";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 
 import type { OzonListResponse, ProductInfo, ProductAttrs } from "@/types/ozon";
+import { formatCurrency, formatDateTime } from "@/lib/format";
+import { getAttrLabel } from "@/lib/ozon-attrs";
 
 export default function OzonProductsDemoPage() {
   const { toast } = useToast();
@@ -24,6 +26,8 @@ export default function OzonProductsDemoPage() {
   const [attrsById, setAttrsById] = useState<Record<number, ProductAttrs>>({});
   const [attrsLoading, setAttrsLoading] = useState(false);
   const [history, setHistory] = useState<string[]>([""]); // stack of last_id used
+  const [sortBy, setSortBy] = useState<string | undefined>(undefined);
+  const [sortDir, setSortDir] = useState<string | undefined>(undefined);
 
   const fetchData = async (opts?: { limit?: number; last_id?: string }) => {
     setLoading(true);
@@ -104,6 +108,8 @@ export default function OzonProductsDemoPage() {
           visibility: "ALL",
         },
         limit: Math.min(ids.length, 1000),
+        ...(sortBy ? { sort_by: sortBy } : {}),
+        ...(sortDir ? { sort_dir: sortDir } : {}),
       };
       const res = await fetch("/api/ozon/products/attributes", {
         method: "POST",
@@ -143,11 +149,11 @@ export default function OzonProductsDemoPage() {
     <div className="max-w-6xl mx-auto p-6 space-y-4">
       <div className="space-y-1">
         <Breadcrumbs items={[{ label: "Главная", href: "/" }, { label: "Ozon Products" }]} />
-        <h1 className="text-2xl font-semibold">Ozon Products</h1>
+        <h1 className="text-2xl font-semibold">Товары Ozon (демо)</h1>
       </div>
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col text-sm">
-          <span className="mb-1">limit</span>
+          <span className="mb-1">Лимит</span>
           <Input
             type="number"
             min={1}
@@ -158,7 +164,7 @@ export default function OzonProductsDemoPage() {
           />
         </label>
         <label className="flex flex-col text-sm flex-1 min-w-[200px]">
-          <span className="mb-1">last_id</span>
+          <span className="mb-1">Маркер страницы (last_id)</span>
           <Input
             type="text"
             value={lastId}
@@ -166,9 +172,28 @@ export default function OzonProductsDemoPage() {
             placeholder="leave empty for first page"
           />
         </label>
-        <Button onClick={() => fetchData()} disabled={loading}>
-          {loading ? "Loading..." : "Fetch"}
-        </Button>
+        <div className="flex items-end gap-3">
+          <label className="flex flex-col text-sm">
+            <span className="mb-1">Сортировка атрибутов</span>
+            <div className="flex gap-2">
+              <select className="border rounded h-9 px-2" value={sortBy ?? ''} onChange={(e) => setSortBy(e.target.value || undefined)}>
+                <option value="">—</option>
+                <option value="sku">sku</option>
+                <option value="offer_id">offer_id</option>
+                <option value="id">id</option>
+                <option value="title">title</option>
+              </select>
+              <select className="border rounded h-9 px-2" value={sortDir ?? ''} onChange={(e) => setSortDir(e.target.value || undefined)}>
+                <option value="">—</option>
+                <option value="asc">asc</option>
+                <option value="desc">desc</option>
+              </select>
+            </div>
+          </label>
+          <Button onClick={() => fetchData()} disabled={loading}>
+            {loading ? "Загрузка..." : "Обновить"}
+          </Button>
+        </div>
         <Button
           variant="secondary"
           onClick={() => {
@@ -177,7 +202,7 @@ export default function OzonProductsDemoPage() {
           }}
           disabled={loading}
         >
-          Reset
+          Сбросить
         </Button>
       </div>
 
@@ -185,7 +210,7 @@ export default function OzonProductsDemoPage() {
         <div className="text-red-600 text-sm">Error: {error}</div>
       )}
 
-      <div className="text-sm text-slate-600">Total: {total}</div>
+        <div className="text-sm text-slate-600">Всего: {total}</div>
 
       <Separator />
 
@@ -216,18 +241,18 @@ export default function OzonProductsDemoPage() {
                     />
                   ) : (
                     <div className="w-full h-40 bg-slate-100 rounded flex items-center justify-center text-slate-400 text-xs">
-                      No image
+                      Нет изображения
                     </div>
                   )}
                   <div className="flex items-baseline gap-2">
                     {detailsById[it.product_id ?? 0]?.price ? (
                       <span className="text-base font-semibold">
-                        {detailsById[it.product_id ?? 0]?.price}
+                        {formatCurrency(detailsById[it.product_id ?? 0]?.price)}
                       </span>
                     ) : null}
                     {detailsById[it.product_id ?? 0]?.old_price ? (
                       <span className="text-xs line-through text-slate-400">
-                        {detailsById[it.product_id ?? 0]?.old_price}
+                        {formatCurrency(detailsById[it.product_id ?? 0]?.old_price)}
                       </span>
                     ) : null}
                   </div>
@@ -249,8 +274,8 @@ export default function OzonProductsDemoPage() {
                     </div>
                   ) : null}
                   <div className="flex flex-wrap gap-2 pt-1">
-                    {it.archived ? <Badge variant="destructive">Archived</Badge> : null}
-                    {it.is_discounted ? <Badge>Discounted</Badge> : null}
+                    {it.archived ? <Badge variant="destructive">Архив</Badge> : null}
+                    {it.is_discounted ? <Badge>Скидка</Badge> : null}
                     {it.has_fbo_stocks ? <Badge variant="secondary">FBO</Badge> : null}
                     {it.has_fbs_stocks ? <Badge variant="secondary">FBS</Badge> : null}
                   </div>
@@ -291,7 +316,7 @@ export default function OzonProductsDemoPage() {
               ))}
             </>
           ) : (
-            <div className="text-sm text-slate-600">No items</div>
+            <div className="text-sm text-slate-600">Нет товаров</div>
           )
         )}
       </div>
@@ -305,7 +330,7 @@ export default function OzonProductsDemoPage() {
           }}
           disabled={loading || !nextLastId}
         >
-          Next page
+          Вперёд
         </Button>
         <Button
           variant="secondary"
@@ -322,18 +347,18 @@ export default function OzonProductsDemoPage() {
           }}
           disabled={loading || history.length <= 1}
         >
-          Prev page
+          Назад
         </Button>
-        <div className="text-xs text-slate-500">next last_id: {nextLastId || "—"}</div>
+        <div className="text-xs text-slate-500">следующий маркер: {nextLastId || "—"}</div>
         {(infoLoading || attrsLoading) ? (
-          <div className="text-xs text-slate-500">loading {infoLoading ? 'details' : ''}{infoLoading && attrsLoading ? ' & ' : ''}{attrsLoading ? 'attributes' : ''}…</div>
+          <div className="text-xs text-slate-500">загрузка {infoLoading ? 'деталей' : ''}{infoLoading && attrsLoading ? ' и ' : ''}{attrsLoading ? 'атрибутов' : ''}…</div>
         ) : null}
       </div>
 
       <details className="mt-4">
-        <summary className="cursor-pointer text-sm text-slate-600">Raw response</summary>
+        <summary className="cursor-pointer text-sm text-slate-600">Сырой ответ</summary>
         <pre className="text-xs bg-gray-50 border rounded p-4 overflow-auto mt-2">
-          {data ? JSON.stringify(data, null, 2) : loading ? "Loading..." : "No data"}
+          {data ? JSON.stringify(data, null, 2) : loading ? "Загрузка..." : "Нет данных"}
         </pre>
       </details>
     </div>
