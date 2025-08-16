@@ -12,8 +12,7 @@ import { useToast } from "@/components/ui/toast";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 
 import type { OzonListResponse, ProductInfo, ProductAttrs, OzonListItem } from "@/types/ozon";
-import { formatCurrency, formatDateTime } from "@/lib/format";
-import { getAttrLabel } from "@/lib/ozon-attrs";
+import { formatCurrency } from "@/lib/format";
 
 export default function Home() {
   const { toast } = useToast();
@@ -26,7 +25,6 @@ export default function Home() {
   const [infoLoading, setInfoLoading] = useState(false);
   const [attrsById, setAttrsById] = useState<Record<number, ProductAttrs>>({});
   const [attrsLoading, setAttrsLoading] = useState(false);
-  const [history, setHistory] = useState<string[]>([""]);
   const [offerQuery, setOfferQuery] = useState("");
   const [skuQuery, setSkuQuery] = useState("");
   const [titleQuery, setTitleQuery] = useState("");
@@ -148,7 +146,7 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const items = useMemo(() => data?.result?.items ?? [], [data]);
+  // const items = useMemo(() => data?.result?.items ?? [], [data]);
   const total = data?.result?.total ?? 0;
   const nextLastId = data?.result?.last_id ?? "";
 
@@ -159,7 +157,6 @@ export default function Home() {
     const obs = new IntersectionObserver((entries) => {
       const e = entries[0];
       if (e.isIntersecting && nextLastId && !loading) {
-        setHistory((h) => [...h, nextLastId || ""]);
         setLastId(nextLastId);
         fetchData({ last_id: nextLastId, limit });
       }

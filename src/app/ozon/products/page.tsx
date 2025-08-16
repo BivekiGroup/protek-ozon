@@ -11,8 +11,7 @@ import { useToast } from "@/components/ui/toast";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 
 import type { OzonListResponse, ProductInfo, ProductAttrs } from "@/types/ozon";
-import { formatCurrency, formatDateTime } from "@/lib/format";
-import { getAttrLabel } from "@/lib/ozon-attrs";
+import { formatCurrency } from "@/lib/format";
 
 export default function OzonProductsDemoPage() {
   const { toast } = useToast();
